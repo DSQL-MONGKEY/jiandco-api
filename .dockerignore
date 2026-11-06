@@ -1,0 +1,17 @@
+.git
+.github/
+.gitignore
+.env
+.env.*
+!.env.example
+*.log
+*.exe
+*.test
+*.out
+bin/
+dist/
+coverage/
+docs/
+.idea/
+.vscode/
+.DS_Store

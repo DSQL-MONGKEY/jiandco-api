@@ -1,0 +1,5 @@
+FROM arigaio/atlas:1.3.7-alpine
+
+WORKDIR /workspace
+
+COPY migrations ./migrations

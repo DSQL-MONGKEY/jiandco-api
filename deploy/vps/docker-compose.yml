@@ -1,0 +1,58 @@
+name: jiandco
+
+services:
+  jiandco-api:
+    image: ${IMAGE_PREFIX:-ghcr.io/dsql-mongkey}/jiandco-api:${API_TAG:-latest}
+    restart: unless-stopped
+    env_file: .env.api
+    environment:
+      TZ: Asia/Jakarta
+    mem_limit: 256m
+    networks: [rjm]
+
+  jiandco-dashboard:
+    image: ${IMAGE_PREFIX:-ghcr.io/dsql-mongkey}/jiandco-dashboard:${DASHBOARD_TAG:-latest}
+    restart: unless-stopped
+    env_file: .env.dashboard
+    environment:
+      TZ: Asia/Jakarta
+    mem_limit: 640m
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/').then(r=>process.exit(r.ok?0:1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+    depends_on: [jiandco-api]
+    networks: [rjm]
+
+  jiandco-landing:
+    image: ${IMAGE_PREFIX:-ghcr.io/dsql-mongkey}/oinsh-page:${LANDING_TAG:-latest}
+    restart: unless-stopped
+    mem_limit: 64m
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1/ >/dev/null || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+    networks: [rjm]
+
+  jiandco-migrate:
+    image: ${IMAGE_PREFIX:-ghcr.io/dsql-mongkey}/jiandco-api-migrations:${API_TAG:-latest}
+    env_file: .env.api
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - 'exec /atlas migrate apply --dir file:///workspace/migrations --url "$$DATABASE_URL"'
+    profiles: ["tools"]
+    networks: [rjm]
+
+  jiandco-seed:
+    image: ${IMAGE_PREFIX:-ghcr.io/dsql-mongkey}/jiandco-api:${API_TAG:-latest}
+    env_file: .env.api
+    entrypoint: ["/app/seed"]
+    profiles: ["tools"]
+    networks: [rjm]
+
+networks:
+  rjm:
+    external: true
+    name: ${RJM_NETWORK:-rjm_rjm}
