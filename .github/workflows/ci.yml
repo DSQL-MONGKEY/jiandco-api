@@ -55,7 +55,7 @@ jobs:
       - name: Install Atlas CLI
         run: |
           curl -sSf https://atlasgo.sh | sh
-          sudo mv $HOME/.atlas/bin/atlas /usr/local/bin/atlas
+          atlas version
 
       - name: Download modules
         run: go mod download
