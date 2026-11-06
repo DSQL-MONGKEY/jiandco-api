@@ -52,8 +52,10 @@ jobs:
           go-version-file: go.mod
           cache: true
 
-      - name: Install Atlas
-        uses: ariga/atlas-action/setup@v1
+      - name: Install Atlas CLI
+        run: |
+          curl -sSf https://atlasgo.sh | sh
+          sudo mv $HOME/.atlas/bin/atlas /usr/local/bin/atlas
 
       - name: Download modules
         run: go mod download
