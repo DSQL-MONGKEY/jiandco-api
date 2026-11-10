@@ -30,9 +30,9 @@ FROM "product_variants" pv
 JOIN "colors" c ON c."id" = pv."color_id"
 GROUP BY pv."product_id", c."name", c."hex_code";
 
-UPDATE "product_variants" pv
+UPDATE "product_variants" AS pv
 SET "product_color_id" = pc."id"
-FROM "product_colors" pc
-JOIN "colors" c ON c."id" = pv."color_id"
+FROM "product_colors" AS pc, "colors" AS c
 WHERE pc."product_id" = pv."product_id"
+  AND c."id" = pv."color_id"
   AND pc."name" = c."name";
