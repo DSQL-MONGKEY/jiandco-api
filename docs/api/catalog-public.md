@@ -24,6 +24,18 @@ Response:
         "name": "Cocoa Lace Vest",
         "collection": "chongsam",
         "color": "Cocoa",
+        "colors": [
+          {
+            "id": "uuid",
+            "name": "Cocoa",
+            "hexCode": "#8B5E3C",
+            "image": {
+              "src": "https://cdn.jiandco.id/catalog/products/.../colors/...webp",
+              "alt": "Cocoa"
+            },
+            "sizes": ["S", "M", "L", "XL"]
+          }
+        ],
         "whatsappPrice": 429000,
         "shopeePrice": 459000,
         "images": [
@@ -74,8 +86,8 @@ Hanya produk `status = active` yang dikembalikan.
 
 1. Status produk `active` (produk baru dari dashboard default `active`).
 2. Pilih kategori agar produk punya collection.
-3. Tambahkan minimal satu varian lengkap: size, color, SKU, dan harga > 0.
-4. Upload minimal satu gambar dari halaman detail produk.
+3. Tambahkan warna custom produk dan minimal satu varian lengkap: size, color, SKU, dan harga > 0.
+4. Upload satu gambar preview per warna dari halaman detail produk.
 5. Pastikan origin `oinsh-page` ada di `CORS_ALLOWED_ORIGINS`.
 6. Buka `/catalog` dan cek response `GET /api/v1/public/catalog`.
 
@@ -87,10 +99,15 @@ Response berisi `product`, `collections`, `promo`, `page`, `cta`, dan `shopeeSto
 
 Menyajikan gambar dari R2 untuk bucket privat. Hanya key dengan prefix `catalog/`, `user/`, atau `accounting/` yang diizinkan.
 
+## CDN gambar
+
+Set `R2_PUBLIC_BASE_URL=https://cdn.jiandco.id` di API. Backend akan mengembalikan URL
+CDN untuk gambar produk dan gambar warna. Object key tetap disimpan di database.
+
 ## CORS
 
 Tambahkan origin `oinsh-page` ke `CORS_ALLOWED_ORIGINS`, misalnya:
 
 ```env
-CORS_ALLOWED_ORIGINS=http://localhost:3000,http://localhost:5173
+CORS_ALLOWED_ORIGINS=https://www.jiandco.id,https://jiandco.id
 ```

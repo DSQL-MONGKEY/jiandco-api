@@ -26,6 +26,16 @@ type Color struct {
 	HexCode string `gorm:"type:varchar(7)"`
 }
 
+type ProductColor struct {
+	Base
+	ProductID uuid.UUID `gorm:"type:uuid;not null;index:idx_product_colors_product_id;uniqueIndex:idx_product_colors_product_name"`
+	Product   Product   `gorm:"foreignKey:ProductID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE;"`
+	Name      string    `gorm:"type:varchar(50);not null;uniqueIndex:idx_product_colors_product_name"`
+	HexCode   string    `gorm:"type:varchar(7)"`
+	ImageKey  string    `gorm:"type:varchar(255)"`
+	SortOrder int       `gorm:"type:integer;not null;default:0;index:idx_product_colors_sort_order"`
+}
+
 type Product struct {
 	Base
 	CategoryID  *uuid.UUID       `gorm:"type:uuid;index:idx_products_category_id"`
@@ -43,6 +53,7 @@ type Product struct {
 	CreatedByID *uuid.UUID       `gorm:"type:uuid;index:idx_products_created_by"`
 	CreatedBy   *User            `gorm:"foreignKey:CreatedByID;constraint:OnUpdate:CASCADE,OnDelete:SET NULL;"`
 	Images      []ProductImage   `gorm:"foreignKey:ProductID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE;"`
+	Colors      []ProductColor   `gorm:"foreignKey:ProductID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE;"`
 	Variants    []ProductVariant `gorm:"foreignKey:ProductID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE;"`
 	SoftDelete
 }
@@ -60,14 +71,16 @@ type ProductImage struct {
 
 type ProductVariant struct {
 	Base
-	ProductID uuid.UUID `gorm:"type:uuid;not null;index:idx_product_variants_product_id;uniqueIndex:idx_product_variants_combo"`
-	Product   Product   `gorm:"foreignKey:ProductID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE;"`
-	SizeID    uuid.UUID `gorm:"type:uuid;not null;index:idx_product_variants_size_id;uniqueIndex:idx_product_variants_combo"`
-	Size      Size      `gorm:"foreignKey:SizeID;constraint:OnUpdate:CASCADE,OnDelete:RESTRICT;"`
-	ColorID   uuid.UUID `gorm:"type:uuid;not null;index:idx_product_variants_color_id;uniqueIndex:idx_product_variants_combo"`
-	Color     Color     `gorm:"foreignKey:ColorID;constraint:OnUpdate:CASCADE,OnDelete:RESTRICT;"`
-	SKU       string    `gorm:"type:varchar(64);not null;uniqueIndex:idx_product_variants_sku"`
-	Price     int64     `gorm:"type:bigint;not null;default:0;check:chk_product_variants_price,price >= 0"`
-	Stock     int       `gorm:"type:integer;not null;default:0;check:chk_product_variants_stock,stock >= 0"`
-	IsActive  bool      `gorm:"not null;default:true"`
+	ProductID      uuid.UUID     `gorm:"type:uuid;not null;index:idx_product_variants_product_id;uniqueIndex:idx_product_variants_combo;uniqueIndex:idx_product_variants_product_color_combo"`
+	Product        Product       `gorm:"foreignKey:ProductID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE;"`
+	SizeID         uuid.UUID     `gorm:"type:uuid;not null;index:idx_product_variants_size_id;uniqueIndex:idx_product_variants_combo;uniqueIndex:idx_product_variants_product_color_combo"`
+	Size           Size          `gorm:"foreignKey:SizeID;constraint:OnUpdate:CASCADE,OnDelete:RESTRICT;"`
+	ColorID        *uuid.UUID    `gorm:"type:uuid;index:idx_product_variants_color_id;uniqueIndex:idx_product_variants_combo"`
+	Color          *Color        `gorm:"foreignKey:ColorID;constraint:OnUpdate:CASCADE,OnDelete:RESTRICT;"`
+	ProductColorID *uuid.UUID    `gorm:"type:uuid;index:idx_product_variants_product_color_id;uniqueIndex:idx_product_variants_product_color_combo"`
+	ProductColor   *ProductColor `gorm:"foreignKey:ProductColorID;constraint:OnUpdate:CASCADE,OnDelete:RESTRICT;"`
+	SKU            string        `gorm:"type:varchar(64);not null;uniqueIndex:idx_product_variants_sku"`
+	Price          int64         `gorm:"type:bigint;not null;default:0;check:chk_product_variants_price,price >= 0"`
+	Stock          int           `gorm:"type:integer;not null;default:0;check:chk_product_variants_stock,stock >= 0"`
+	IsActive       bool          `gorm:"not null;default:true"`
 }

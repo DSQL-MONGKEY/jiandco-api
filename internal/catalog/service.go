@@ -167,12 +167,21 @@ func (s *Service) mapProduct(product *models.Product) PublicProduct {
 		badgeTone = "light"
 	}
 
+	colors := s.mapProductColors(product, variants)
+	primaryColor := ""
+	if len(colors) > 0 {
+		primaryColor = colors[0].Name
+	} else {
+		primaryColor = variantColor(variants, product.Variants)
+	}
+
 	return PublicProduct{
 		ID:            product.ID.String(),
 		Slug:          product.Slug,
 		Name:          product.Name,
 		Collection:    collection,
-		Color:         variantColor(variants, product.Variants),
+		Color:         primaryColor,
+		Colors:        colors,
 		WhatsAppPrice: whatsappPrice,
 		ShopeePrice:   shopeePrice,
 		Images:        images,
@@ -191,6 +200,76 @@ func (s *Service) publicImageURL(key string) string {
 		return url
 	}
 	return "/api/v1/public/media/" + strings.TrimLeft(key, "/")
+}
+
+func (s *Service) mapProductColors(product *models.Product, variants []models.ProductVariant) []PublicColor {
+	fallbackImage := ""
+	if len(product.Images) > 0 {
+		fallbackImage = s.publicImageURL(product.Images[0].ObjectKey)
+	}
+
+	colors := make([]PublicColor, 0, len(product.Colors))
+	for index := range product.Colors {
+		color := product.Colors[index]
+		filtered := make([]models.ProductVariant, 0)
+		for _, variant := range variants {
+			if variant.ProductColorID != nil && *variant.ProductColorID == color.ID {
+				filtered = append(filtered, variant)
+			}
+		}
+		sizes := variantSizes(filtered, filtered)
+		image := fallbackImage
+		if color.ImageKey != "" {
+			image = s.publicImageURL(color.ImageKey)
+		}
+		colors = append(colors, PublicColor{
+			ID:      color.ID.String(),
+			Name:    color.Name,
+			HexCode: color.HexCode,
+			Image:   PublicImage{Src: image, Alt: color.Name},
+			Sizes:   sizes,
+		})
+	}
+
+	// Backward compatibility for products not yet backfilled to product_colors.
+	if len(colors) == 0 {
+		seen := make(map[string]struct{})
+		for _, variant := range variants {
+			colorName := ""
+			if variant.ProductColor != nil {
+				colorName = variant.ProductColor.Name
+			} else if variant.Color != nil {
+				colorName = variant.Color.Name
+			}
+			if colorName == "" {
+				continue
+			}
+			if _, exists := seen[colorName]; exists {
+				continue
+			}
+			seen[colorName] = struct{}{}
+			filtered := make([]models.ProductVariant, 0)
+			for _, candidate := range variants {
+				candidateName := ""
+				if candidate.ProductColor != nil {
+					candidateName = candidate.ProductColor.Name
+				} else if candidate.Color != nil {
+					candidateName = candidate.Color.Name
+				}
+				if candidateName == colorName {
+					filtered = append(filtered, candidate)
+				}
+			}
+			colors = append(colors, PublicColor{
+				ID:    colorName,
+				Name:  colorName,
+				Image: PublicImage{Src: fallbackImage, Alt: colorName},
+				Sizes: variantSizes(filtered, filtered),
+			})
+		}
+	}
+
+	return colors
 }
 
 func activeVariants(variants []models.ProductVariant) []models.ProductVariant {

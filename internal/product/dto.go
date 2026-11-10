@@ -50,21 +50,30 @@ type ColorResponse struct {
 	UpdatedAt time.Time `json:"updated_at"`
 }
 
+type ProductColorRequest struct {
+	ID        *uuid.UUID `json:"id"`
+	Name      string     `json:"name" validate:"required,min=1,max=50"`
+	HexCode   string     `json:"hex_code" validate:"omitempty,max=7"`
+	SortOrder int        `json:"sort_order"`
+}
+
 type CreateVariantRequest struct {
-	SizeID   uuid.UUID `json:"size_id" validate:"required"`
-	ColorID  uuid.UUID `json:"color_id" validate:"required"`
-	SKU      string    `json:"sku" validate:"required,max=64"`
-	Price    int64     `json:"price" validate:"min=0"`
-	Stock    int       `json:"stock" validate:"min=0"`
-	IsActive *bool     `json:"is_active"`
+	SizeID         uuid.UUID  `json:"size_id" validate:"required"`
+	ProductColorID *uuid.UUID `json:"product_color_id"`
+	ColorID        *uuid.UUID `json:"color_id"`
+	SKU            string     `json:"sku" validate:"required,max=64"`
+	Price          int64      `json:"price" validate:"min=0"`
+	Stock          int        `json:"stock" validate:"min=0"`
+	IsActive       *bool      `json:"is_active"`
 }
 
 type UpdateVariantRequest struct {
-	SizeID   uuid.UUID `json:"size_id" validate:"required"`
-	ColorID  uuid.UUID `json:"color_id" validate:"required"`
-	SKU      string    `json:"sku" validate:"required,max=64"`
-	Price    int64     `json:"price" validate:"min=0"`
-	IsActive *bool     `json:"is_active"`
+	SizeID         uuid.UUID  `json:"size_id" validate:"required"`
+	ProductColorID *uuid.UUID `json:"product_color_id"`
+	ColorID        *uuid.UUID `json:"color_id"`
+	SKU            string     `json:"sku" validate:"required,max=64"`
+	Price          int64      `json:"price" validate:"min=0"`
+	IsActive       *bool      `json:"is_active"`
 }
 
 type UpdateStockRequest struct {
@@ -84,6 +93,7 @@ type CreateProductRequest struct {
 	Badge       string                 `json:"badge" validate:"max=50"`
 	BadgeTone   string                 `json:"badge_tone" validate:"omitempty,oneof=light accent"`
 	SortOrder   int                    `json:"sort_order"`
+	Colors      []ProductColorRequest  `json:"colors" validate:"omitempty,dive"`
 	Variants    []CreateVariantRequest `json:"variants" validate:"omitempty,dive"`
 }
 
@@ -119,17 +129,29 @@ type ImageResponse struct {
 	CreatedAt time.Time `json:"created_at"`
 }
 
+type ProductColorResponse struct {
+	ID        uuid.UUID `json:"id"`
+	ProductID uuid.UUID `json:"product_id"`
+	Name      string    `json:"name"`
+	HexCode   string    `json:"hex_code"`
+	ImageKey  string    `json:"image_key"`
+	ImageURL  string    `json:"image_url"`
+	SortOrder int       `json:"sort_order"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
 type VariantResponse struct {
-	ID        uuid.UUID     `json:"id"`
-	ProductID uuid.UUID     `json:"product_id"`
-	Size      SizeResponse  `json:"size"`
-	Color     ColorResponse `json:"color"`
-	SKU       string        `json:"sku"`
-	Price     int64         `json:"price"`
-	Stock     int           `json:"stock"`
-	IsActive  bool          `json:"is_active"`
-	CreatedAt time.Time     `json:"created_at"`
-	UpdatedAt time.Time     `json:"updated_at"`
+	ID        uuid.UUID            `json:"id"`
+	ProductID uuid.UUID            `json:"product_id"`
+	Size      SizeResponse         `json:"size"`
+	Color     ProductColorResponse `json:"color"`
+	SKU       string               `json:"sku"`
+	Price     int64                `json:"price"`
+	Stock     int                  `json:"stock"`
+	IsActive  bool                 `json:"is_active"`
+	CreatedAt time.Time            `json:"created_at"`
+	UpdatedAt time.Time            `json:"updated_at"`
 }
 
 type StockMovementResponse struct {
@@ -151,24 +173,25 @@ type StockMovementResponse struct {
 }
 
 type ProductResponse struct {
-	ID          uuid.UUID         `json:"id"`
-	CategoryID  *uuid.UUID        `json:"category_id"`
-	Category    *CategoryResponse `json:"category"`
-	Name        string            `json:"name"`
-	Slug        string            `json:"slug"`
-	Description string            `json:"description"`
-	Status      string            `json:"status"`
-	ShopeeURL   string            `json:"shopee_url"`
-	ShopeePrice int64             `json:"shopee_price"`
-	Details     []string          `json:"details"`
-	Badge       string            `json:"badge"`
-	BadgeTone   string            `json:"badge_tone"`
-	SortOrder   int               `json:"sort_order"`
-	CreatedByID *uuid.UUID        `json:"created_by_id"`
-	Images      []ImageResponse   `json:"images"`
-	Variants    []VariantResponse `json:"variants"`
-	CreatedAt   time.Time         `json:"created_at"`
-	UpdatedAt   time.Time         `json:"updated_at"`
+	ID          uuid.UUID              `json:"id"`
+	CategoryID  *uuid.UUID             `json:"category_id"`
+	Category    *CategoryResponse      `json:"category"`
+	Name        string                 `json:"name"`
+	Slug        string                 `json:"slug"`
+	Description string                 `json:"description"`
+	Status      string                 `json:"status"`
+	ShopeeURL   string                 `json:"shopee_url"`
+	ShopeePrice int64                  `json:"shopee_price"`
+	Details     []string               `json:"details"`
+	Badge       string                 `json:"badge"`
+	BadgeTone   string                 `json:"badge_tone"`
+	SortOrder   int                    `json:"sort_order"`
+	CreatedByID *uuid.UUID             `json:"created_by_id"`
+	Images      []ImageResponse        `json:"images"`
+	Colors      []ProductColorResponse `json:"colors"`
+	Variants    []VariantResponse      `json:"variants"`
+	CreatedAt   time.Time              `json:"created_at"`
+	UpdatedAt   time.Time              `json:"updated_at"`
 }
 
 func ToCategoryResponse(category *models.Category) CategoryResponse {
@@ -238,12 +261,47 @@ func ToImageResponse(image *models.ProductImage, storageClient *storage.Client) 
 	}
 }
 
-func ToVariantResponse(variant *models.ProductVariant) VariantResponse {
+func ToProductColorResponse(color *models.ProductColor, storageClient *storage.Client) ProductColorResponse {
+	return ProductColorResponse{
+		ID:        color.ID,
+		ProductID: color.ProductID,
+		Name:      color.Name,
+		HexCode:   color.HexCode,
+		ImageKey:  color.ImageKey,
+		ImageURL:  storageClient.URL(color.ImageKey),
+		SortOrder: color.SortOrder,
+		CreatedAt: color.CreatedAt,
+		UpdatedAt: color.UpdatedAt,
+	}
+}
+
+func ToProductColorResponses(colors []models.ProductColor, storageClient *storage.Client) []ProductColorResponse {
+	result := make([]ProductColorResponse, 0, len(colors))
+	for index := range colors {
+		result = append(result, ToProductColorResponse(&colors[index], storageClient))
+	}
+	return result
+}
+
+func ToVariantResponse(variant *models.ProductVariant, storageClient *storage.Client) VariantResponse {
+	var color ProductColorResponse
+	if variant.ProductColor != nil {
+		color = ToProductColorResponse(variant.ProductColor, storageClient)
+	} else if variant.Color != nil {
+		color = ProductColorResponse{
+			ID:        variant.Color.ID,
+			ProductID: variant.ProductID,
+			Name:      variant.Color.Name,
+			HexCode:   variant.Color.HexCode,
+			CreatedAt: variant.Color.CreatedAt,
+			UpdatedAt: variant.Color.UpdatedAt,
+		}
+	}
 	return VariantResponse{
 		ID:        variant.ID,
 		ProductID: variant.ProductID,
 		Size:      ToSizeResponse(&variant.Size),
-		Color:     ToColorResponse(&variant.Color),
+		Color:     color,
 		SKU:       variant.SKU,
 		Price:     variant.Price,
 		Stock:     variant.Stock,
@@ -293,7 +351,7 @@ func ToProductResponse(product *models.Product, storageClient *storage.Client) P
 
 	variants := make([]VariantResponse, 0, len(product.Variants))
 	for index := range product.Variants {
-		variants = append(variants, ToVariantResponse(&product.Variants[index]))
+		variants = append(variants, ToVariantResponse(&product.Variants[index], storageClient))
 	}
 
 	var category *CategoryResponse
@@ -318,6 +376,7 @@ func ToProductResponse(product *models.Product, storageClient *storage.Client) P
 		SortOrder:   product.SortOrder,
 		CreatedByID: product.CreatedByID,
 		Images:      images,
+		Colors:      ToProductColorResponses(product.Colors, storageClient),
 		Variants:    variants,
 		CreatedAt:   product.CreatedAt,
 		UpdatedAt:   product.UpdatedAt,

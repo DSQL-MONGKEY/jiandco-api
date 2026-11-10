@@ -109,6 +109,7 @@ If the compiler runs out of memory on Windows, use `GOFLAGS=-p=1` for build/test
 - Key conventions:
   - `user/avatars/{userID}/{uuid}.{ext}`
   - `catalog/products/{productID}/{uuid}.{ext}`
+  - `catalog/products/{productID}/colors/{colorID}/{uuid}.{ext}`
   - `accounting/receipts/{expenseID}/{uuid}.{ext}`
 - Validate MIME type and file size before upload.
 - Max upload: avatar 10 MB, product image 10 MB per file, receipt 10 MB.

@@ -156,10 +156,18 @@ func (r *Repository) FindProduct(ctx context.Context, id uuid.UUID) (*models.Pro
 	return &product, nil
 }
 
-func (r *Repository) CreateProduct(ctx context.Context, product *models.Product, variants []models.ProductVariant, movements []models.StockMovement) error {
+func (r *Repository) CreateProduct(ctx context.Context, product *models.Product, colors []models.ProductColor, variants []models.ProductVariant, movements []models.StockMovement) error {
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := tx.Create(product).Error; err != nil {
 			return err
+		}
+		for index := range colors {
+			colors[index].ProductID = product.ID
+		}
+		if len(colors) > 0 {
+			if err := tx.Create(&colors).Error; err != nil {
+				return err
+			}
 		}
 		if len(variants) > 0 {
 			for index := range variants {
@@ -214,6 +222,7 @@ func (r *Repository) FindVariant(ctx context.Context, productID, variantID uuid.
 		Preload("Product").
 		Preload("Size").
 		Preload("Color").
+		Preload("ProductColor").
 		First(&variant, "id = ? AND product_id = ?", variantID, productID).Error
 	if err != nil {
 		return nil, err
@@ -221,9 +230,9 @@ func (r *Repository) FindVariant(ctx context.Context, productID, variantID uuid.
 	return &variant, nil
 }
 
-func (r *Repository) VariantComboExists(ctx context.Context, productID, sizeID, colorID uuid.UUID, excludeID *uuid.UUID) (bool, error) {
+func (r *Repository) VariantComboExists(ctx context.Context, productID, sizeID, productColorID uuid.UUID, excludeID *uuid.UUID) (bool, error) {
 	query := r.db.WithContext(ctx).Model(&models.ProductVariant{}).
-		Where("product_id = ? AND size_id = ? AND color_id = ?", productID, sizeID, colorID)
+		Where("product_id = ? AND size_id = ? AND product_color_id = ?", productID, sizeID, productColorID)
 	if excludeID != nil {
 		query = query.Where("id <> ?", *excludeID)
 	}
@@ -275,6 +284,7 @@ func (r *Repository) UpdateStockWithMovement(ctx context.Context, variantID uuid
 		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
 			Preload("Size").
 			Preload("Color").
+			Preload("ProductColor").
 			First(&variant, "id = ?", variantID).Error; err != nil {
 			return err
 		}
@@ -290,7 +300,7 @@ func (r *Repository) UpdateStockWithMovement(ctx context.Context, variantID uuid
 			VariantID:     &variant.ID,
 			ProductID:     &variant.ProductID,
 			SKU:           variant.SKU,
-			VariantLabel:  variant.Size.Name + " / " + variant.Color.Name,
+			VariantLabel:  variant.Size.Name + " / " + variantColorName(&variant),
 			Type:          models.StockMovementTypeAdjustment,
 			Quantity:      stock - variant.Stock,
 			StockBefore:   variant.Stock,
@@ -396,15 +406,98 @@ func (r *Repository) ImageStats(ctx context.Context, productID uuid.UUID) (maxSo
 	return maxSort, primaryCount > 0, nil
 }
 
+func (r *Repository) ListProductColors(ctx context.Context, productID uuid.UUID) ([]models.ProductColor, error) {
+	var colors []models.ProductColor
+	err := r.db.WithContext(ctx).
+		Where("product_id = ?", productID).
+		Order("sort_order ASC, created_at ASC").
+		Find(&colors).Error
+	return colors, err
+}
+
+func (r *Repository) FindProductColor(ctx context.Context, productID, colorID uuid.UUID) (*models.ProductColor, error) {
+	var color models.ProductColor
+	if err := r.db.WithContext(ctx).
+		Where("id = ? AND product_id = ?", colorID, productID).
+		First(&color).Error; err != nil {
+		return nil, err
+	}
+	return &color, nil
+}
+
+func (r *Repository) FindProductColorByName(ctx context.Context, productID uuid.UUID, name string) (*models.ProductColor, error) {
+	var color models.ProductColor
+	if err := r.db.WithContext(ctx).
+		Where("product_id = ? AND lower(name) = lower(?)", productID, strings.TrimSpace(name)).
+		First(&color).Error; err != nil {
+		return nil, err
+	}
+	return &color, nil
+}
+
+func (r *Repository) CreateProductColor(ctx context.Context, color *models.ProductColor) error {
+	return r.db.WithContext(ctx).Create(color).Error
+}
+
+func (r *Repository) UpdateProductColor(ctx context.Context, productID, colorID uuid.UUID, values map[string]any) error {
+	return r.db.WithContext(ctx).
+		Model(&models.ProductColor{}).
+		Where("id = ? AND product_id = ?", colorID, productID).
+		Updates(values).Error
+}
+
+func (r *Repository) DeleteProductColor(ctx context.Context, productID, colorID uuid.UUID) error {
+	return r.db.WithContext(ctx).
+		Delete(&models.ProductColor{}, "id = ? AND product_id = ?", colorID, productID).Error
+}
+
+func (r *Repository) ProductColorUsedByVariants(ctx context.Context, colorID uuid.UUID) (bool, error) {
+	var count int64
+	if err := r.db.WithContext(ctx).
+		Model(&models.ProductVariant{}).
+		Where("product_color_id = ?", colorID).
+		Count(&count).Error; err != nil {
+		return false, err
+	}
+	return count > 0, nil
+}
+
+func (r *Repository) SetProductColorImage(ctx context.Context, productID, colorID uuid.UUID, imageKey string) (string, error) {
+	var previous string
+	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var color models.ProductColor
+		if err := tx.Where("id = ? AND product_id = ?", colorID, productID).First(&color).Error; err != nil {
+			return err
+		}
+		previous = color.ImageKey
+		return tx.Model(&models.ProductColor{}).Where("id = ?", colorID).Update("image_key", imageKey).Error
+	})
+	return previous, err
+}
+
+func variantColorName(variant *models.ProductVariant) string {
+	if variant.ProductColor != nil {
+		return variant.ProductColor.Name
+	}
+	if variant.Color != nil {
+		return variant.Color.Name
+	}
+	return ""
+}
+
 func preloadProduct(db *gorm.DB) *gorm.DB {
 	return db.
 		Preload("Category").
 		Preload("Images", func(tx *gorm.DB) *gorm.DB {
 			return tx.Order("sort_order ASC, created_at ASC")
 		}).
+		Preload("Colors", func(tx *gorm.DB) *gorm.DB {
+			return tx.Order("sort_order ASC, created_at ASC")
+		}).
 		Preload("Variants", func(tx *gorm.DB) *gorm.DB {
 			return tx.Order("created_at ASC")
 		}).
 		Preload("Variants.Size").
-		Preload("Variants.Color")
+		Preload("Variants.Color").
+		Preload("Variants.ProductColor")
 }

@@ -3,11 +3,14 @@ package catalog
 import (
 	"testing"
 
+	"github.com/google/uuid"
+
 	"jianco-api/internal/models"
 )
 
 func TestMapProductPublicShape(t *testing.T) {
 	category := &models.Category{Name: "Chongsam", Slug: "chongsam"}
+	colorID := uuid.New()
 	product := models.Product{
 		Name:        "Cocoa Lace Vest",
 		Slug:        "cocoa-lace-vest",
@@ -17,10 +20,13 @@ func TestMapProductPublicShape(t *testing.T) {
 		Images: []models.ProductImage{
 			{ObjectKey: "catalog/products/product/image.jpg"},
 		},
+		Colors: []models.ProductColor{
+			{Base: models.Base{ID: colorID}, Name: "Cocoa", HexCode: "#8B5E3C"},
+		},
 		Variants: []models.ProductVariant{
-			{Price: 150000, IsActive: true, Size: models.Size{Name: "M", SortOrder: 2}, Color: models.Color{Name: "Cocoa"}},
-			{Price: 100000, IsActive: false, Size: models.Size{Name: "S", SortOrder: 1}, Color: models.Color{Name: "Cocoa"}},
-			{Price: 120000, IsActive: true, Size: models.Size{Name: "S", SortOrder: 1}, Color: models.Color{Name: "Cocoa"}},
+			{Price: 150000, IsActive: true, Size: models.Size{Name: "M", SortOrder: 2}, ProductColorID: &colorID, ProductColor: &models.ProductColor{Name: "Cocoa"}},
+			{Price: 100000, IsActive: false, Size: models.Size{Name: "S", SortOrder: 1}, ProductColorID: &colorID, ProductColor: &models.ProductColor{Name: "Cocoa"}},
+			{Price: 120000, IsActive: true, Size: models.Size{Name: "S", SortOrder: 1}, ProductColorID: &colorID, ProductColor: &models.ProductColor{Name: "Cocoa"}},
 		},
 	}
 
@@ -43,6 +49,12 @@ func TestMapProductPublicShape(t *testing.T) {
 	}
 	if len(got.Images) != 1 || got.Images[0].Src != "/api/v1/public/media/catalog/products/product/image.jpg" {
 		t.Fatalf("images = %#v", got.Images)
+	}
+	if len(got.Colors) != 1 || got.Colors[0].Name != "Cocoa" {
+		t.Fatalf("colors = %#v", got.Colors)
+	}
+	if len(got.Colors[0].Sizes) != 2 || got.Colors[0].Sizes[0] != "S" || got.Colors[0].Sizes[1] != "M" {
+		t.Fatalf("color sizes = %#v, want [S M]", got.Colors[0].Sizes)
 	}
 }
 

@@ -1,5 +1,15 @@
 # Changelog
 
+## 2026-11-07 - Fase 8
+
+- Menambahkan warna custom per produk (`product_colors`) dengan satu gambar preview per warna.
+- Menambahkan endpoint CRUD warna produk dan upload gambar warna.
+- Menambahkan dukungan create product dengan colors + variants sekaligus.
+- Variant sekarang memakai `product_color_id`; `color_id` global dipertahankan untuk migrasi.
+- Public catalog mengembalikan `colors` beserta ukuran dan gambar per warna.
+- Mengaktifkan URL gambar melalui CDN `https://cdn.jiandco.id`.
+- Memperbarui dokumentasi schema, produk, catalog publik, dan storage.
+
 ## 2026-11-05 - Fase 7
 
 - Menaikkan batas upload gambar produk dan avatar menjadi 10 MB.

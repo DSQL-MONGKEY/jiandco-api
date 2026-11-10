@@ -253,6 +253,7 @@ func (r *Repository) FindVariantForOrder(ctx context.Context, variantID uuid.UUI
 		Preload("Product").
 		Preload("Size").
 		Preload("Color").
+		Preload("ProductColor").
 		First(&variant, "id = ?", variantID).Error
 	if err != nil {
 		return nil, err

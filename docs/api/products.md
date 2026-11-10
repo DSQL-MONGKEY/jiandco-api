@@ -473,3 +473,85 @@ Tipe movement:
 | `order` | stok keluar karena order dikonfirmasi |
 | `cancel` | stok kembali karena order dibatalkan/dihapus |
 | `return` | stok kembali karena pengiriman returned |
+
+## Product colors
+
+Warna sekarang bersifat custom per produk. Warna global lama hanya dipertahankan untuk
+kompatibilitas data dan tidak lagi dipakai UI dashboard.
+
+### GET /products/:id/colors
+
+Response berisi daftar `ProductColor`:
+
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "id": "uuid",
+      "product_id": "uuid",
+      "name": "Cocoa",
+      "hex_code": "#8B5E3C",
+      "image_key": "catalog/products/<product-id>/colors/<color-id>/<uuid>.webp",
+      "image_url": "https://cdn.jiandco.id/catalog/products/...",
+      "sort_order": 0
+    }
+  ]
+}
+```
+
+### POST /products/:id/colors
+
+```json
+{
+  "name": "Ivory",
+  "hex_code": "#F2E8D8",
+  "sort_order": 1
+}
+```
+
+### PUT /products/:id/colors/:colorId
+
+Body sama dengan create.
+
+### DELETE /products/:id/colors/:colorId
+
+Ditolak dengan `409` jika warna masih dipakai variant.
+
+### POST /products/:id/colors/:colorId/image
+
+`multipart/form-data`, field `image`. Format JPEG/PNG/WebP, maksimal 10 MB. Satu gambar
+preview per warna. Gambar lama dihapus best-effort saat diganti.
+
+### DELETE /products/:id/colors/:colorId/image
+
+Menghapus gambar preview warna.
+
+### Create product dengan colors dan variants
+
+```json
+{
+  "name": "Lace Vest",
+  "status": "active",
+  "colors": [
+    {
+      "id": "uuid-cocoa",
+      "name": "Cocoa",
+      "hex_code": "#8B5E3C",
+      "sort_order": 0
+    }
+  ],
+  "variants": [
+    {
+      "size_id": "uuid-size-m",
+      "product_color_id": "uuid-cocoa",
+      "sku": "LACE-M-COCOA",
+      "price": 150000,
+      "stock": 10
+    }
+  ]
+}
+```
+
+`product_color_id` adalah ID warna custom produk. Field lama `color_id` masih diterima
+untuk kompatibilitas dan akan dipetakan ke product color.

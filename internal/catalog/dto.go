@@ -11,12 +11,21 @@ type PublicCollection struct {
 	Description string `json:"description"`
 }
 
+type PublicColor struct {
+	ID      string      `json:"id"`
+	Name    string      `json:"name"`
+	HexCode string      `json:"hexCode"`
+	Image   PublicImage `json:"image"`
+	Sizes   []string    `json:"sizes"`
+}
+
 type PublicProduct struct {
 	ID            string        `json:"id"`
 	Slug          string        `json:"slug"`
 	Name          string        `json:"name"`
 	Collection    string        `json:"collection"`
 	Color         string        `json:"color"`
+	Colors        []PublicColor `json:"colors"`
 	WhatsAppPrice int64         `json:"whatsappPrice"`
 	ShopeePrice   int64         `json:"shopeePrice"`
 	Images        []PublicImage `json:"images"`

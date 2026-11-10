@@ -238,6 +238,153 @@ func (s *Service) DeleteColor(ctx context.Context, id uuid.UUID) error {
 	return nil
 }
 
+func (s *Service) ListProductColors(ctx context.Context, productID uuid.UUID) ([]models.ProductColor, error) {
+	if _, err := s.GetProduct(ctx, productID); err != nil {
+		return nil, err
+	}
+	colors, err := s.repo.ListProductColors(ctx, productID)
+	if err != nil {
+		return nil, apperror.Internal(err)
+	}
+	return colors, nil
+}
+
+func (s *Service) CreateProductColor(ctx context.Context, productID uuid.UUID, request ProductColorRequest) (*models.ProductColor, error) {
+	if _, err := s.GetProduct(ctx, productID); err != nil {
+		return nil, err
+	}
+	hexCode, err := normalizeHexCode(request.HexCode)
+	if err != nil {
+		return nil, err
+	}
+	color := &models.ProductColor{
+		ProductID: productID,
+		Name:      strings.TrimSpace(request.Name),
+		HexCode:   hexCode,
+		SortOrder: request.SortOrder,
+	}
+	if err := s.repo.CreateProductColor(ctx, color); err != nil {
+		if errors.Is(err, gorm.ErrDuplicatedKey) {
+			return nil, apperror.Conflict("color name is already used for this product")
+		}
+		return nil, apperror.Internal(err)
+	}
+	return color, nil
+}
+
+func (s *Service) UpdateProductColor(ctx context.Context, productID, colorID uuid.UUID, request ProductColorRequest) (*models.ProductColor, error) {
+	if _, err := s.repo.FindProductColor(ctx, productID, colorID); err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, apperror.NotFound("product color not found")
+		}
+		return nil, apperror.Internal(err)
+	}
+	hexCode, err := normalizeHexCode(request.HexCode)
+	if err != nil {
+		return nil, err
+	}
+	err = s.repo.UpdateProductColor(ctx, productID, colorID, map[string]any{
+		"name":       strings.TrimSpace(request.Name),
+		"hex_code":   hexCode,
+		"sort_order": request.SortOrder,
+	})
+	if err != nil {
+		if errors.Is(err, gorm.ErrDuplicatedKey) {
+			return nil, apperror.Conflict("color name is already used for this product")
+		}
+		return nil, apperror.Internal(err)
+	}
+	return s.repo.FindProductColor(ctx, productID, colorID)
+}
+
+func (s *Service) DeleteProductColor(ctx context.Context, productID, colorID uuid.UUID) error {
+	color, err := s.repo.FindProductColor(ctx, productID, colorID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return apperror.NotFound("product color not found")
+		}
+		return apperror.Internal(err)
+	}
+	used, err := s.repo.ProductColorUsedByVariants(ctx, color.ID)
+	if err != nil {
+		return apperror.Internal(err)
+	}
+	if used {
+		return apperror.Conflict("color is used by product variants")
+	}
+	if err := s.repo.DeleteProductColor(ctx, productID, colorID); err != nil {
+		return apperror.Internal(err)
+	}
+	_ = s.storage.Delete(ctx, color.ImageKey)
+	return nil
+}
+
+func (s *Service) UploadProductColorImage(ctx context.Context, productID, colorID uuid.UUID, fileHeader *multipart.FileHeader) (*models.ProductColor, error) {
+	if _, err := s.repo.FindProductColor(ctx, productID, colorID); err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, apperror.NotFound("product color not found")
+		}
+		return nil, apperror.Internal(err)
+	}
+	if !s.storage.Enabled() {
+		return nil, apperror.New(503, "file storage is not configured")
+	}
+	upload, err := storage.OpenValidated(fileHeader, storage.ImageTypes, storage.MaxProductImageSize)
+	if err != nil {
+		switch {
+		case errors.Is(err, storage.ErrEmptyFile):
+			return nil, apperror.BadRequest("image file is empty")
+		case errors.Is(err, storage.ErrFileTooLarge):
+			return nil, apperror.BadRequest("image must be at most 10 MB")
+		case errors.Is(err, storage.ErrUnsupportedType):
+			return nil, apperror.BadRequest("image must be JPEG, PNG, or WebP")
+		default:
+			return nil, apperror.BadRequest("failed to read uploaded image")
+		}
+	}
+	defer upload.File.Close()
+
+	key := storage.BuildKey("catalog/products", productID.String()+"/colors/"+colorID.String(), "color"+upload.Extension)
+	if _, err := s.storage.Upload(ctx, key, upload.File, upload.ContentType, upload.Size); err != nil {
+		return nil, apperror.Wrap(502, "failed to upload color image", err)
+	}
+	previous, err := s.repo.SetProductColorImage(ctx, productID, colorID, key)
+	if err != nil {
+		_ = s.storage.Delete(ctx, key)
+		return nil, apperror.Internal(err)
+	}
+	if previous != "" && previous != key {
+		_ = s.storage.Delete(ctx, previous)
+	}
+	return s.repo.FindProductColor(ctx, productID, colorID)
+}
+
+func (s *Service) DeleteProductColorImage(ctx context.Context, productID, colorID uuid.UUID) error {
+	color, err := s.repo.FindProductColor(ctx, productID, colorID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return apperror.NotFound("product color not found")
+		}
+		return apperror.Internal(err)
+	}
+	if _, err := s.repo.SetProductColorImage(ctx, productID, colorID, ""); err != nil {
+		return apperror.Internal(err)
+	}
+	_ = s.storage.Delete(ctx, color.ImageKey)
+	return nil
+}
+
+func normalizeHexCode(value string) (string, error) {
+	hexCode := strings.TrimSpace(value)
+	if hexCode == "" {
+		return "", nil
+	}
+	if len(hexCode) != 7 || !strings.HasPrefix(hexCode, "#") {
+		return "", apperror.BadRequest("hex_code must use #RRGGBB format")
+	}
+	return strings.ToUpper(hexCode), nil
+}
+
 func (s *Service) ListProducts(ctx context.Context, filter ProductListFilter) ([]models.Product, int64, error) {
 	products, total, err := s.repo.ListProducts(ctx, filter)
 	if err != nil {
@@ -274,7 +421,11 @@ func (s *Service) CreateProduct(ctx context.Context, actor *models.User, request
 		return nil, err
 	}
 
-	variants, labels, err := s.buildVariants(ctx, request.Variants)
+	colors, colorByID, legacyColorIDs, err := s.prepareProductColors(ctx, request.Colors, request.Variants)
+	if err != nil {
+		return nil, err
+	}
+	variants, labels, err := s.buildVariants(ctx, request.Variants, colorByID, legacyColorIDs)
 	if err != nil {
 		return nil, err
 	}
@@ -323,7 +474,7 @@ func (s *Service) CreateProduct(ctx context.Context, actor *models.User, request
 		})
 	}
 
-	if err := s.repo.CreateProduct(ctx, product, variants, movements); err != nil {
+	if err := s.repo.CreateProduct(ctx, product, colors, variants, movements); err != nil {
 		if errors.Is(err, gorm.ErrDuplicatedKey) {
 			return nil, apperror.Conflict("product slug, variant SKU, or variant combination is already used")
 		}
@@ -403,13 +554,13 @@ func (s *Service) CreateVariant(ctx context.Context, actor *models.User, product
 	if err != nil {
 		return nil, err
 	}
-	color, err := s.GetColor(ctx, request.ColorID)
+	color, err := s.resolveProductColor(ctx, productID, request.ProductColorID, request.ColorID)
 	if err != nil {
 		return nil, err
 	}
 
 	sku := strings.ToUpper(strings.TrimSpace(request.SKU))
-	comboExists, err := s.repo.VariantComboExists(ctx, productID, request.SizeID, request.ColorID, nil)
+	comboExists, err := s.repo.VariantComboExists(ctx, productID, request.SizeID, color.ID, nil)
 	if err != nil {
 		return nil, apperror.Internal(err)
 	}
@@ -429,13 +580,13 @@ func (s *Service) CreateVariant(ctx context.Context, actor *models.User, product
 		isActive = *request.IsActive
 	}
 	variant := &models.ProductVariant{
-		ProductID: productID,
-		SizeID:    request.SizeID,
-		ColorID:   request.ColorID,
-		SKU:       sku,
-		Price:     request.Price,
-		Stock:     request.Stock,
-		IsActive:  isActive,
+		ProductID:      productID,
+		SizeID:         request.SizeID,
+		ProductColorID: &color.ID,
+		SKU:            sku,
+		Price:          request.Price,
+		Stock:          request.Stock,
+		IsActive:       isActive,
 	}
 	var movement *models.StockMovement
 	if variant.Stock > 0 {
@@ -476,12 +627,13 @@ func (s *Service) UpdateVariant(ctx context.Context, productID, variantID uuid.U
 	if _, err := s.GetSize(ctx, request.SizeID); err != nil {
 		return nil, err
 	}
-	if _, err := s.GetColor(ctx, request.ColorID); err != nil {
+	color, err := s.resolveProductColor(ctx, productID, request.ProductColorID, request.ColorID)
+	if err != nil {
 		return nil, err
 	}
 
 	sku := strings.ToUpper(strings.TrimSpace(request.SKU))
-	comboExists, err := s.repo.VariantComboExists(ctx, productID, request.SizeID, request.ColorID, &variant.ID)
+	comboExists, err := s.repo.VariantComboExists(ctx, productID, request.SizeID, color.ID, &variant.ID)
 	if err != nil {
 		return nil, apperror.Internal(err)
 	}
@@ -502,11 +654,12 @@ func (s *Service) UpdateVariant(ctx context.Context, productID, variantID uuid.U
 	}
 
 	err = s.repo.UpdateVariant(ctx, variantID, map[string]any{
-		"size_id":   request.SizeID,
-		"color_id":  request.ColorID,
-		"sku":       sku,
-		"price":     request.Price,
-		"is_active": isActive,
+		"size_id":          request.SizeID,
+		"product_color_id": color.ID,
+		"color_id":         nil,
+		"sku":              sku,
+		"price":            request.Price,
+		"is_active":        isActive,
 	})
 	if err != nil {
 		if errors.Is(err, gorm.ErrDuplicatedKey) {
@@ -590,7 +743,7 @@ func (s *Service) UploadImages(ctx context.Context, productID uuid.UUID, files [
 			case errors.Is(err, storage.ErrEmptyFile):
 				return nil, apperror.BadRequest("image file is empty")
 			case errors.Is(err, storage.ErrFileTooLarge):
-				return nil, apperror.BadRequest("each image must be at most 5 MB")
+				return nil, apperror.BadRequest("each image must be at most 10 MB")
 			case errors.Is(err, storage.ErrUnsupportedType):
 				return nil, apperror.BadRequest("images must be JPEG, PNG, or WebP")
 			default:
@@ -651,7 +804,76 @@ func (s *Service) SetPrimaryImage(ctx context.Context, productID, imageID uuid.U
 	return nil
 }
 
-func (s *Service) buildVariants(ctx context.Context, requests []CreateVariantRequest) ([]models.ProductVariant, []string, error) {
+func (s *Service) prepareProductColors(ctx context.Context, requests []ProductColorRequest, variants []CreateVariantRequest) ([]models.ProductColor, map[uuid.UUID]models.ProductColor, map[uuid.UUID]uuid.UUID, error) {
+	colors := make([]models.ProductColor, 0, len(requests))
+	byID := make(map[uuid.UUID]models.ProductColor, len(requests))
+	byName := make(map[string]uuid.UUID, len(requests))
+	legacyColorIDs := make(map[uuid.UUID]uuid.UUID)
+
+	for _, request := range requests {
+		id := uuid.New()
+		if request.ID != nil && *request.ID != uuid.Nil {
+			id = *request.ID
+		}
+		name := strings.TrimSpace(request.Name)
+		if name == "" {
+			return nil, nil, nil, apperror.BadRequest("color name is required")
+		}
+		normalizedName := strings.ToLower(name)
+		if _, exists := byID[id]; exists {
+			return nil, nil, nil, apperror.BadRequest("duplicate product color id")
+		}
+		if _, exists := byName[normalizedName]; exists {
+			return nil, nil, nil, apperror.BadRequest("duplicate product color name")
+		}
+		hexCode, err := normalizeHexCode(request.HexCode)
+		if err != nil {
+			return nil, nil, nil, err
+		}
+		color := models.ProductColor{
+			Base:      models.Base{ID: id},
+			Name:      name,
+			HexCode:   hexCode,
+			SortOrder: request.SortOrder,
+		}
+		colors = append(colors, color)
+		byID[id] = color
+		byName[normalizedName] = id
+	}
+
+	// Backward compatibility for clients that still send global color_id.
+	for _, request := range variants {
+		if request.ProductColorID != nil || request.ColorID == nil {
+			continue
+		}
+		if _, exists := legacyColorIDs[*request.ColorID]; exists {
+			continue
+		}
+		globalColor, err := s.GetColor(ctx, *request.ColorID)
+		if err != nil {
+			return nil, nil, nil, err
+		}
+		normalizedName := strings.ToLower(globalColor.Name)
+		if id, exists := byName[normalizedName]; exists {
+			legacyColorIDs[*request.ColorID] = id
+			continue
+		}
+		id := uuid.New()
+		color := models.ProductColor{
+			Base:    models.Base{ID: id},
+			Name:    globalColor.Name,
+			HexCode: globalColor.HexCode,
+		}
+		colors = append(colors, color)
+		byID[id] = color
+		byName[normalizedName] = id
+		legacyColorIDs[*request.ColorID] = id
+	}
+
+	return colors, byID, legacyColorIDs, nil
+}
+
+func (s *Service) buildVariants(ctx context.Context, requests []CreateVariantRequest, colorsByID map[uuid.UUID]models.ProductColor, legacyColorIDs map[uuid.UUID]uuid.UUID) ([]models.ProductVariant, []string, error) {
 	variants := make([]models.ProductVariant, 0, len(requests))
 	labels := make([]string, 0, len(requests))
 	seenCombos := make(map[string]struct{}, len(requests))
@@ -662,12 +884,17 @@ func (s *Service) buildVariants(ctx context.Context, requests []CreateVariantReq
 		if err != nil {
 			return nil, nil, err
 		}
-		color, err := s.GetColor(ctx, request.ColorID)
+
+		colorID, err := s.resolveVariantColorID(request.ProductColorID, request.ColorID, colorsByID, legacyColorIDs)
 		if err != nil {
 			return nil, nil, err
 		}
+		color, exists := colorsByID[colorID]
+		if !exists {
+			return nil, nil, apperror.BadRequest("product color not found")
+		}
 
-		combo := fmt.Sprintf("%s:%s", request.SizeID, request.ColorID)
+		combo := fmt.Sprintf("%s:%s", request.SizeID, colorID)
 		if _, exists := seenCombos[combo]; exists {
 			return nil, nil, apperror.BadRequest("duplicate size and color combination in variants")
 		}
@@ -683,18 +910,69 @@ func (s *Service) buildVariants(ctx context.Context, requests []CreateVariantReq
 		if request.IsActive != nil {
 			isActive = *request.IsActive
 		}
+		productColorID := colorID
 		variants = append(variants, models.ProductVariant{
-			SizeID:   request.SizeID,
-			ColorID:  request.ColorID,
-			SKU:      sku,
-			Price:    request.Price,
-			Stock:    request.Stock,
-			IsActive: isActive,
+			SizeID:         request.SizeID,
+			ProductColorID: &productColorID,
+			SKU:            sku,
+			Price:          request.Price,
+			Stock:          request.Stock,
+			IsActive:       isActive,
 		})
 		labels = append(labels, size.Name+" / "+color.Name)
 	}
 
 	return variants, labels, nil
+}
+
+func (s *Service) resolveVariantColorID(productColorID, legacyColorID *uuid.UUID, colorsByID map[uuid.UUID]models.ProductColor, legacyColorIDs map[uuid.UUID]uuid.UUID) (uuid.UUID, error) {
+	if productColorID != nil {
+		return *productColorID, nil
+	}
+	if legacyColorID != nil {
+		if id, exists := legacyColorIDs[*legacyColorID]; exists {
+			return id, nil
+		}
+	}
+	return uuid.Nil, apperror.BadRequest("product color is required")
+}
+
+func (s *Service) resolveProductColor(ctx context.Context, productID uuid.UUID, productColorID, legacyColorID *uuid.UUID) (*models.ProductColor, error) {
+	if productColorID != nil {
+		color, err := s.repo.FindProductColor(ctx, productID, *productColorID)
+		if err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return nil, apperror.BadRequest("product color not found")
+			}
+			return nil, apperror.Internal(err)
+		}
+		return color, nil
+	}
+
+	if legacyColorID != nil {
+		globalColor, err := s.GetColor(ctx, *legacyColorID)
+		if err != nil {
+			return nil, err
+		}
+		color, err := s.repo.FindProductColorByName(ctx, productID, globalColor.Name)
+		if err == nil {
+			return color, nil
+		}
+		if !errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, apperror.Internal(err)
+		}
+		color = &models.ProductColor{
+			ProductID: productID,
+			Name:      globalColor.Name,
+			HexCode:   globalColor.HexCode,
+		}
+		if err := s.repo.CreateProductColor(ctx, color); err != nil {
+			return nil, apperror.Internal(err)
+		}
+		return color, nil
+	}
+
+	return nil, apperror.BadRequest("product color is required")
 }
 
 func (s *Service) uniqueProductSlug(ctx context.Context, name, requested string, excludeID *uuid.UUID) (string, error) {

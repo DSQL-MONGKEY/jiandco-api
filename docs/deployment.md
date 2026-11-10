@@ -38,7 +38,7 @@ R2_ACCOUNT_ID=<account-id>
 R2_ACCESS_KEY_ID=<access-key>
 R2_SECRET_ACCESS_KEY=<secret-key>
 R2_BUCKET=jiandco
-R2_PUBLIC_BASE_URL=https://cdn.example.com
+R2_PUBLIC_BASE_URL=https://cdn.jiandco.id
 ```
 
 Catatan:

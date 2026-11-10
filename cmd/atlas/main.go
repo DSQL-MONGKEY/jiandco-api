@@ -19,6 +19,7 @@ func main() {
 		&models.Category{},
 		&models.Size{},
 		&models.Color{},
+		&models.ProductColor{},
 		&models.Product{},
 		&models.ProductImage{},
 		&models.ProductVariant{},

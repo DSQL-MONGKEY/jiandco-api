@@ -227,6 +227,110 @@ func (h *Handler) DeleteColor(c fiber.Ctx) error {
 	return response.OK(c, map[string]any{"message": "color deleted"})
 }
 
+func (h *Handler) ListProductColors(c fiber.Ctx) error {
+	productID, err := parseID(c, "id", "product")
+	if err != nil {
+		return err
+	}
+	colors, err := h.service.ListProductColors(c.Context(), productID)
+	if err != nil {
+		return err
+	}
+	return response.OK(c, ToProductColorResponses(colors, h.storage))
+}
+
+func (h *Handler) CreateProductColor(c fiber.Ctx) error {
+	productID, err := parseID(c, "id", "product")
+	if err != nil {
+		return err
+	}
+	var request ProductColorRequest
+	if err := c.Bind().Body(&request); err != nil {
+		return apperror.BadRequest("invalid request body")
+	}
+	if err := utils.Validate(&request); err != nil {
+		return err
+	}
+	color, err := h.service.CreateProductColor(c.Context(), productID, request)
+	if err != nil {
+		return err
+	}
+	return response.Created(c, ToProductColorResponse(color, h.storage))
+}
+
+func (h *Handler) UpdateProductColor(c fiber.Ctx) error {
+	productID, err := parseID(c, "id", "product")
+	if err != nil {
+		return err
+	}
+	colorID, err := parseID(c, "colorId", "color")
+	if err != nil {
+		return err
+	}
+	var request ProductColorRequest
+	if err := c.Bind().Body(&request); err != nil {
+		return apperror.BadRequest("invalid request body")
+	}
+	if err := utils.Validate(&request); err != nil {
+		return err
+	}
+	color, err := h.service.UpdateProductColor(c.Context(), productID, colorID, request)
+	if err != nil {
+		return err
+	}
+	return response.OK(c, ToProductColorResponse(color, h.storage))
+}
+
+func (h *Handler) DeleteProductColor(c fiber.Ctx) error {
+	productID, err := parseID(c, "id", "product")
+	if err != nil {
+		return err
+	}
+	colorID, err := parseID(c, "colorId", "color")
+	if err != nil {
+		return err
+	}
+	if err := h.service.DeleteProductColor(c.Context(), productID, colorID); err != nil {
+		return err
+	}
+	return response.OK(c, map[string]any{"message": "color deleted"})
+}
+
+func (h *Handler) UploadProductColorImage(c fiber.Ctx) error {
+	productID, err := parseID(c, "id", "product")
+	if err != nil {
+		return err
+	}
+	colorID, err := parseID(c, "colorId", "color")
+	if err != nil {
+		return err
+	}
+	fileHeader, err := c.FormFile("image")
+	if err != nil {
+		return apperror.BadRequest("image is required")
+	}
+	color, err := h.service.UploadProductColorImage(c.Context(), productID, colorID, fileHeader)
+	if err != nil {
+		return err
+	}
+	return response.OK(c, ToProductColorResponse(color, h.storage))
+}
+
+func (h *Handler) DeleteProductColorImage(c fiber.Ctx) error {
+	productID, err := parseID(c, "id", "product")
+	if err != nil {
+		return err
+	}
+	colorID, err := parseID(c, "colorId", "color")
+	if err != nil {
+		return err
+	}
+	if err := h.service.DeleteProductColorImage(c.Context(), productID, colorID); err != nil {
+		return err
+	}
+	return response.OK(c, map[string]any{"message": "color image deleted"})
+}
+
 func (h *Handler) ListProducts(c fiber.Ctx) error {
 	pagination := utils.ParsePagination(c)
 	filter := ProductListFilter{
@@ -350,7 +454,7 @@ func (h *Handler) CreateVariant(c fiber.Ctx) error {
 	if err != nil {
 		return err
 	}
-	return response.Created(c, ToVariantResponse(variant))
+	return response.Created(c, ToVariantResponse(variant, h.storage))
 }
 
 func (h *Handler) UpdateVariant(c fiber.Ctx) error {
@@ -375,7 +479,7 @@ func (h *Handler) UpdateVariant(c fiber.Ctx) error {
 	if err != nil {
 		return err
 	}
-	return response.OK(c, ToVariantResponse(variant))
+	return response.OK(c, ToVariantResponse(variant, h.storage))
 }
 
 func (h *Handler) DeleteVariant(c fiber.Ctx) error {
@@ -420,7 +524,7 @@ func (h *Handler) UpdateStock(c fiber.Ctx) error {
 	if err != nil {
 		return err
 	}
-	return response.OK(c, ToVariantResponse(variant))
+	return response.OK(c, ToVariantResponse(variant, h.storage))
 }
 
 func (h *Handler) ListStockMovements(c fiber.Ctx) error {

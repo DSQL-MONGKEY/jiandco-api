@@ -324,7 +324,7 @@ func (s *Service) buildItems(ctx context.Context, requests []CreateItemRequest) 
 			ProductID:    &productID,
 			VariantID:    &variantID,
 			ProductName:  variant.Product.Name,
-			VariantLabel: variant.Size.Name + " / " + variant.Color.Name,
+			VariantLabel: variant.Size.Name + " / " + productVariantColorName(variant),
 			SKU:          variant.SKU,
 			Price:        variant.Price,
 			Quantity:     request.Quantity,
@@ -334,6 +334,16 @@ func (s *Service) buildItems(ctx context.Context, requests []CreateItemRequest) 
 	}
 
 	return items, subtotal, nil
+}
+
+func productVariantColorName(variant *models.ProductVariant) string {
+	if variant.ProductColor != nil {
+		return variant.ProductColor.Name
+	}
+	if variant.Color != nil {
+		return variant.Color.Name
+	}
+	return ""
 }
 
 func firstNonEmpty(values ...string) string {

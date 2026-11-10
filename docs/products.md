@@ -16,7 +16,7 @@ categories 1─N products 1─N product_images
 
 products 1─N product_variants N─1 sizes
 
-products 1─N product_variants N─1 colors
+products 1─N product_colors 1─N product_variants
 
 ```
 
@@ -24,7 +24,7 @@ products 1─N product_variants N─1 colors
 
 - Harga dan stok berada di level varian.
 
-- Satu varian adalah kombinasi unik `product + size + color`.
+- Satu varian adalah kombinasi unik `product + size + product_color`. Warna bersifat custom per produk.
 
 - SKU unik per varian.
 
@@ -66,6 +66,11 @@ DELETE /api/v1/products/:id
 
 
 
+POST   /api/v1/products/:id/colors
+PUT    /api/v1/products/:id/colors/:colorId
+DELETE /api/v1/products/:id/colors/:colorId
+POST   /api/v1/products/:id/colors/:colorId/image
+DELETE /api/v1/products/:id/colors/:colorId/image
 POST   /api/v1/products/:id/images
 
 DELETE /api/v1/products/:id/images/:imageId
@@ -88,7 +93,7 @@ GET/POST/PUT/DELETE /api/v1/categories
 
 GET/POST/PUT/DELETE /api/v1/sizes
 
-GET/POST/PUT/DELETE /api/v1/colors
+GET/POST/PUT/DELETE /api/v1/colors (legacy, tidak dipakai UI produk)
 
 ```
 
@@ -109,6 +114,8 @@ Semua endpoint memakai permission `products.*`.
 - Maksimal 10 MB per file.
 
 - Object key: `catalog/products/{productID}/{uuid}.{ext}`.
+- Gambar warna: `catalog/products/{productID}/colors/{colorID}/{uuid}.{ext}`.
+- URL publik memakai `R2_PUBLIC_BASE_URL`, production `https://cdn.jiandco.id`.
 
 - Database menyimpan `object_key`, bukan URL.
 

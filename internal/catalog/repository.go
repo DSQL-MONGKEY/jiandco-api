@@ -22,11 +22,15 @@ func preloadCatalogProduct(db *gorm.DB) *gorm.DB {
 		Preload("Images", func(tx *gorm.DB) *gorm.DB {
 			return tx.Order("is_primary DESC, sort_order ASC, created_at ASC")
 		}).
+		Preload("Colors", func(tx *gorm.DB) *gorm.DB {
+			return tx.Order("sort_order ASC, created_at ASC")
+		}).
 		Preload("Variants", func(tx *gorm.DB) *gorm.DB {
 			return tx.Order("created_at ASC")
 		}).
 		Preload("Variants.Size").
-		Preload("Variants.Color")
+		Preload("Variants.Color").
+		Preload("Variants.ProductColor")
 }
 
 func (r *Repository) ListActiveProducts(ctx context.Context) ([]models.Product, error) {

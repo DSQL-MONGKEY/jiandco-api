@@ -34,9 +34,11 @@ erDiagram
   USERS ||--o{ EXPENSES : creates
   CATEGORIES ||--o{ PRODUCTS : classifies
   PRODUCTS ||--o{ PRODUCT_IMAGES : has
+  PRODUCTS ||--o{ PRODUCT_COLORS : has
+  PRODUCT_COLORS ||--o{ PRODUCT_VARIANTS : colors
   PRODUCTS ||--o{ PRODUCT_VARIANTS : has
   SIZES ||--o{ PRODUCT_VARIANTS : sizes
-  COLORS ||--o{ PRODUCT_VARIANTS : colors
+  COLORS ||--o{ PRODUCT_VARIANTS : legacy
   CUSTOMERS ||--o{ ORDERS : places
   ORDERS ||--o{ ORDER_ITEMS : contains
   PRODUCTS ||--o{ ORDER_ITEMS : snapshot
@@ -148,6 +150,22 @@ Satu row per login. Refresh token dirotasi pada row yang sama.
 | hex_code | varchar(7) | nullable, contoh `#112233` |
 | created_at, updated_at | timestamptz | not null |
 
+### product_colors
+
+Warna custom per produk. Satu warna memiliki satu gambar preview.
+
+| Kolom | Tipe | Aturan |
+|---|---|---|
+| id | uuid | PK |
+| product_id | uuid | not null, FK products, cascade delete, index |
+| name | varchar(50) | not null |
+| hex_code | varchar(7) | nullable, contoh `#112233` |
+| image_key | varchar(255) | nullable, key R2 |
+| sort_order | integer | not null, default 0, index |
+| created_at, updated_at | timestamptz | not null |
+
+Unique composite: `(product_id, name)`.
+
 ### products
 
 | Kolom | Tipe | Aturan |
@@ -189,14 +207,16 @@ Satu gambar primary per produk ditegakkan di service.
 | id | uuid | PK |
 | product_id | uuid | not null, FK products, cascade delete |
 | size_id | uuid | not null, FK sizes, restrict delete |
-| color_id | uuid | not null, FK colors, restrict delete |
+| color_id | uuid | nullable, FK colors, restrict delete; legacy compatibility |
+| product_color_id | uuid | nullable, FK product_colors, restrict delete, index |
 | sku | varchar(64) | not null, unique |
 | price | bigint | not null, default 0, check >= 0 |
 | stock | integer | not null, default 0, check >= 0 |
 | is_active | boolean | not null, default true |
 | created_at, updated_at | timestamptz | not null |
 
-Unique composite: `(product_id, size_id, color_id)`.
+Unique composite baru: `(product_id, size_id, product_color_id)`.
+Unique lama `(product_id, size_id, color_id)` dipertahankan selama masa transisi.
 
 ### catalog_settings
 

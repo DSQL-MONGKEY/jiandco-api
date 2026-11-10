@@ -8,7 +8,7 @@ R2_ACCESS_KEY_ID=
 R2_SECRET_ACCESS_KEY=
 R2_BUCKET=jiandco
 R2_ENDPOINT=
-R2_PUBLIC_BASE_URL=
+R2_PUBLIC_BASE_URL=https://cdn.jiandco.id
 ```
 
 - `R2_ENDPOINT` opsional. Jika kosong, diturunkan menjadi `https://{R2_ACCOUNT_ID}.r2.cloudflarestorage.com`.
@@ -24,6 +24,7 @@ Database hanya menyimpan object key.
 ```text
 user/avatars/{userID}/{uuid}.{ext}
 catalog/products/{productID}/{uuid}.{ext}
+catalog/products/{productID}/colors/{colorID}/{uuid}.{ext}
 accounting/receipts/{expenseID}/{uuid}.{ext}
 ```
 
@@ -51,6 +52,7 @@ MIME dideteksi dari isi file (`http.DetectContentType`), bukan hanya ekstensi.
 ## URL
 
 - Bucket publik: response memakai `R2_PUBLIC_BASE_URL + "/" + object_key`.
+- Untuk Ji&Co production, `R2_PUBLIC_BASE_URL=https://cdn.jiandco.id`.
 - Bucket privat: gunakan presigned GET di fase berikutnya; jangan menyimpan URL sementara di database.
 
 ## Aturan
