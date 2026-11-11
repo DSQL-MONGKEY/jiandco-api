@@ -7,6 +7,7 @@
 - Model GORM di `internal/models` menjadi sumber schema deklaratif.
 - Migration dan `atlas.sum` wajib di-commit.
 - Setiap perubahan schema wajib memperbarui `docs/database-schema.md`.
+- File migration dan `atlas.sum` wajib memakai LF. `.gitattributes` mengunci line ending agar checksum sama di Windows dan CI.
 
 ## Alur perubahan schema
 
@@ -19,7 +20,13 @@ atlas migrate diff <nama_perubahan> --env local
 ```
 
 4. Review SQL yang dihasilkan: FK, index, check constraint, default, nullable.
-5. Validasi checksum dan SQL:
+5. Jika SQL diedit manual, regenerate checksum:
+
+```bash
+atlas migrate hash --dir "file://migrations"
+```
+
+6. Validasi checksum dan SQL:
 
 ```bash
 atlas migrate validate --env local
@@ -31,13 +38,13 @@ Catatan: `atlas migrate lint` memerlukan Atlas Pro sejak v0.38. Jika tersedia, j
 atlas migrate lint --env local --latest 1
 ```
 
-6. Apply ke database lokal:
+7. Apply ke database lokal:
 
 ```bash
 atlas migrate apply --env local
 ```
 
-7. Update dokumentasi schema.
+8. Update dokumentasi schema.
 
 ## Konfigurasi Atlas
 

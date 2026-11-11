@@ -72,6 +72,11 @@ jobs:
       - name: Build
         run: go build ./...
 
+      - name: Verify migration checksum
+        run: |
+          atlas migrate hash --dir "file://migrations"
+          git diff --exit-code -- migrations/atlas.sum
+
       - name: Validate migrations
         run: atlas migrate validate --env local
 
